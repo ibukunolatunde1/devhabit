@@ -19,6 +19,13 @@ public sealed class HabitsController(ApplicationDbContext dbContext) : Controlle
     [HttpGet]
     public async Task<ActionResult<HabitsCollectionDto>> GetHabits([FromQuery] HabitQueryParameters queryParameters, SortMappingProvider sortMappingProvider)
     {
+        if(!sortMappingProvider.ValidateMappings<HabitDto, Habit>(queryParameters.Sort))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The provided sort parameter '{queryParameters.Sort}' is invalid."
+            );
+        }
         string? search = queryParameters.Search?.Trim().ToLowerInvariant();
         string pattern = $"%{search}%";
         SortMapping[] sortMappings = sortMappingProvider.GetMappings<HabitDto, Habit>();
