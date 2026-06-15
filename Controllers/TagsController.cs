@@ -22,12 +22,12 @@ public sealed class TagsController(ApplicationDbContext dbContext) : ControllerB
             .Select(TagQueries.ProjectToDto())
             .ToListAsync();
 
-        var habitsCollectionDto = new TagsCollectionDto
+        var tagsCollectionDto = new TagsCollectionDto
         {
-            Data = tags
+            Items = tags
         };
 
-        return Ok(habitsCollectionDto);
+        return Ok(tagsCollectionDto);
     }
 
     [HttpGet("{id}")]
