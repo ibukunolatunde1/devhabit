@@ -113,6 +113,44 @@ namespace DevHabit.Api.Migrations.Application
                     b.ToTable("Tags", "dev_habit");
                 });
 
+            modelBuilder.Entity("DevHabit.Api.Entities.User", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("IdentityId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("IdentityId")
+                        .IsUnique();
+
+                    b.ToTable("Users", "dev_habit");
+                });
+
             modelBuilder.Entity("DevHabit.Api.Entities.Habit", b =>
                 {
                     b.OwnsOne("DevHabit.Api.Entities.Frequency", "Frequency", b1 =>

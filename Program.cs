@@ -9,7 +9,13 @@ using DevHabit.Api.Extensions;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.AddControllers().AddErrorHandling().AddDatabase().AddOpenTelemetry().AddApplicationServices();
+builder
+    .AddApiServices()
+    .AddErrorHandling()
+    .AddDatabase()
+    .AddOpenTelemetry()
+    .AddApplicationServices()
+    .AddAuthenticationServices();
 
 WebApplication app = builder.Build();
 

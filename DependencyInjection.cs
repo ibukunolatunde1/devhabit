@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using DevHabit.Api.Database;
 using DevHabit.Api.DTOs.Habits;
 using DevHabit.Api.Entities;
@@ -5,6 +6,7 @@ using DevHabit.Api.Middleware;
 using DevHabit.Api.Services;
 using DevHabit.Api.Services.Sorting;
 using FluentValidation;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +22,7 @@ namespace DevHabit.Api;
 
 public static class DependencyInjection
 {
-    public static WebApplicationBuilder AddControllers(this WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddApiServices(this WebApplicationBuilder builder)
     {
         builder.Services.AddControllers(
             options => options.ReturnHttpNotAcceptable = true
@@ -30,8 +32,24 @@ public static class DependencyInjection
         builder.Services.Configure<MvcOptions>(options =>
         {
             NewtonsoftJsonOutputFormatter formatter = options.OutputFormatters.OfType<NewtonsoftJsonOutputFormatter>().First();
-            formatter.SupportedMediaTypes.Add(CustomMediaTypeNames.HateoasJson);
+            formatter.SupportedMediaTypes.Add(CustomMediaTypeNames.Application.JsonV1);
+            formatter.SupportedMediaTypes.Add(CustomMediaTypeNames.Application.JsonV2);
+            formatter.SupportedMediaTypes.Add(CustomMediaTypeNames.Application.HateoasJson);
+            formatter.SupportedMediaTypes.Add(CustomMediaTypeNames.Application.HateoasJsonV1);
+            formatter.SupportedMediaTypes.Add(CustomMediaTypeNames.Application.HateoasJsonV2);
         });
+        builder.Services.AddApiVersioning(options => {
+            options.DefaultApiVersion = new ApiVersion(1.0);
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.ReportApiVersions = true;
+            options.ApiVersionSelector = new CurrentImplementationApiVersionSelector(options);
+            options.ApiVersionReader = ApiVersionReader.Combine(
+                new MediaTypeApiVersionReader(),
+                new MediaTypeApiVersionReaderBuilder()
+                    .Template("application/vnd.dev-habit.hateoas.{version}+json")
+                    .Build()
+            );
+        }).AddMvc();
         builder.Services.AddOpenApi();
 
         return builder;
@@ -58,6 +76,11 @@ public static class DependencyInjection
             options.UseNpgsql(
                 builder.Configuration.GetConnectionString("Database"),
                 npsqlOptions => npsqlOptions.MigrationsHistoryTable(HistoryRepository.DefaultTableName, Schemas.Application)
+            ));
+        builder.Services.AddDbContext<ApplicationIdentityDbContext>(options =>
+            options.UseNpgsql(
+                builder.Configuration.GetConnectionString("Database"),
+                npsqlOptions => npsqlOptions.MigrationsHistoryTable(HistoryRepository.DefaultTableName, Schemas.Identity)
             ));
 
         return builder;
@@ -94,6 +117,13 @@ public static class DependencyInjection
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddTransient<LinkService>();
 
+        return builder;
+    }
+
+    public static WebApplicationBuilder AddAuthenticationServices(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddIdentity<IdentityUser, IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationIdentityDbContext>();
         return builder;
     }
 }
