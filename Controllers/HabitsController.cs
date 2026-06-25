@@ -14,9 +14,11 @@ using DevHabit.Api.Services;
 using System.Dynamic;
 using Asp.Versioning;
 using System.Net.Mime;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DevHabit.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [ApiVersion("1.0")]
@@ -28,7 +30,7 @@ namespace DevHabit.Api.Controllers;
     CustomMediaTypeNames.Application.HateoasJsonV1,
     CustomMediaTypeNames.Application.HateoasJsonV2
 )]
-public sealed class HabitsController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
+public sealed class HabitsController(ApplicationDbContext dbContext, LinkService linkService, UserContext userContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetHabits(
@@ -37,6 +39,14 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
         DataShapingService dataShapingService
         )
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         if(!sortMappingProvider.ValidateMappings<HabitDto, Habit>(queryParameters.Sort))
         {
             return Problem(
@@ -56,6 +66,7 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
         SortMapping[] sortMappings = sortMappingProvider.GetMappings<HabitDto, Habit>();
         
         IQueryable<HabitDto> habitsQuery = dbContext.Habits
+            .Where(h => h.UserId == userId)
             .Where(h => EF.Functions.ILike(h.Name, pattern) || h.Description != null && EF.Functions.ILike(h.Description, pattern))
             .Where(h => queryParameters.Type == null || h.Type == queryParameters.Type)
             .Where(h => queryParameters.Status == null || h.Status == queryParameters.Status)
@@ -85,6 +96,14 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
     [MapToApiVersion(1.0)]
     public async Task<IActionResult> GetHabit(string id, [FromQuery] HabitQueryParameters queryParameters, DataShapingService dataShapingService)
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         if (!dataShapingService.Validate<HabitWithTagsDto>(queryParameters.Fields))
         {
             return Problem(
@@ -95,7 +114,7 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
 
         HabitWithTagsDto? habit = await dbContext
         .Habits
-        .Where(habit => habit.Id == id)
+        .Where(habit => habit.Id == id && habit.UserId == userId)
         .Select(HabitQueries.ProjectToDtoWithTags()).FirstOrDefaultAsync();
 
         if (habit is null)
@@ -115,6 +134,14 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
     [MapToApiVersion(2.0)]
     public async Task<IActionResult> GetHabitV2(string id, [FromQuery] HabitQueryParameters queryParameters, DataShapingService dataShapingService)
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         if (!dataShapingService.Validate<HabitWithTagsDtoV2>(queryParameters.Fields))
         {
             return Problem(
@@ -125,7 +152,7 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
 
         HabitWithTagsDtoV2? habit = await dbContext
         .Habits
-        .Where(habit => habit.Id == id)
+        .Where(habit => habit.Id == id && habit.UserId == userId)
         .Select(HabitQueries.ProjectToDtoWithTagsV2()).FirstOrDefaultAsync();
 
         if (habit is null)
@@ -144,8 +171,16 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
     [HttpPost]
     public async Task<ActionResult<HabitDto>> CreateHabit(CreateHabitDto createHabitDto, [FromHeader] AcceptHeaderDto acceptHeader, IValidator<CreateHabitDto> validator)
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         await validator.ValidateAndThrowAsync(createHabitDto);
-        Habit habit = createHabitDto.ToEntity();
+        Habit habit = createHabitDto.ToEntity(userId);
         dbContext.Habits.Add(habit);
         await dbContext.SaveChangesAsync();
         HabitDto habitDto = habit.ToDto();
@@ -159,7 +194,16 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateHabit(string id, [FromBody] UpdateHabitDto updateHabitDto)
     {
-        Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id);
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
+
+        Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id && h.UserId == userId);
         if (habit is null)
         {
             return NotFound();
@@ -172,7 +216,15 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
     [HttpPatch("{id}")]
     public async Task<ActionResult> PatchHabit(string id, JsonPatchDocument<HabitDto> patchDocument)
     {
-        Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id);
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
+        Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id && h.UserId == userId);
         if (habit is null)
         {
             return NotFound();
@@ -193,7 +245,15 @@ public sealed class HabitsController(ApplicationDbContext dbContext, LinkService
     [HttpDelete("{id}")]
     public async Task <ActionResult> DeleteHabit(string id)
     {
-        Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id);
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
+        Habit? habit = await dbContext.Habits.FirstOrDefaultAsync(h => h.Id == id && h.UserId == userId);
         if(habit is null)
         {
             return NotFound();

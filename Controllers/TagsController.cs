@@ -7,12 +7,14 @@ using DevHabit.Api.Entities;
 using DevHabit.Api.Services;
 using FluentValidation;
 using FluentValidation.Results;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace DevHabit.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces(
@@ -21,11 +23,19 @@ namespace DevHabit.Api.Controllers;
     CustomMediaTypeNames.Application.HateoasJson,
     CustomMediaTypeNames.Application.HateoasJsonV1
 )]
-public sealed class TagsController(ApplicationDbContext dbContext, LinkService linkService) : ControllerBase
+public sealed class TagsController(ApplicationDbContext dbContext, LinkService linkService, UserContext userContext) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<TagsCollectionDto>> GetTags([FromHeader] AcceptHeaderDto acceptHeader)
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         List<TagDto> tags = await dbContext
             .Tags
             .Select(TagQueries.ProjectToDto())
@@ -47,9 +57,17 @@ public sealed class TagsController(ApplicationDbContext dbContext, LinkService l
     [HttpGet("{id}")]
     public async Task<ActionResult<TagDto>> GetTag(string id, [FromHeader] AcceptHeaderDto acceptHeader)
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         TagDto? tag = await dbContext
             .Tags
-            .Where(h => h.Id == id)
+            .Where(h => h.Id == id && h.UserId == userId)
             .Select(TagQueries.ProjectToDto())
             .FirstOrDefaultAsync();
 
@@ -69,6 +87,14 @@ public sealed class TagsController(ApplicationDbContext dbContext, LinkService l
     [HttpPost]
     public async Task<ActionResult<TagDto>> CreateTag(CreateTagDto createTagDto, [FromHeader] AcceptHeaderDto acceptHeader, IValidator<CreateTagDto> validator, ProblemDetailsFactory problemDetailsFactory)
     {
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
         ValidationResult validationResult = await validator.ValidateAsync(createTagDto);
         if (!validationResult.IsValid)
         {
@@ -80,7 +106,7 @@ public sealed class TagsController(ApplicationDbContext dbContext, LinkService l
             //return ValidationProblem(new ValidationProblemDetails(validationResult.ToDictionary()));
             return BadRequest(problem);
         }
-        Tag tag = createTagDto.ToEntity();
+        Tag tag = createTagDto.ToEntity(userId);
 
         if (await dbContext.Tags.AnyAsync(t => t.Name == tag.Name))
         {
@@ -106,7 +132,16 @@ public sealed class TagsController(ApplicationDbContext dbContext, LinkService l
     [HttpPut("{id}")]
     public async Task<ActionResult> UpdateTag(string id, UpdateTagDto updateTagDto)
     {
-        Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(h => h.Id == id);
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
+        
+        Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(h => h.Id == id && h.UserId == userId);
 
         if (tag is null)
         {
@@ -123,7 +158,16 @@ public sealed class TagsController(ApplicationDbContext dbContext, LinkService l
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteTag(string id)
     {
-        Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(h => h.Id == id);
+        string? userId = await userContext.GetUserIdAsync();
+        if(string.IsNullOrWhiteSpace(userId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "User is not authenticated."
+            );
+        }
+
+        Tag? tag = await dbContext.Tags.FirstOrDefaultAsync(h => h.Id == id && h.UserId == userId);
 
         if (tag is null)
         {
