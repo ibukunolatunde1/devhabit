@@ -18,7 +18,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace DevHabit.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = Roles.Member)]
 [ApiController]
 [Route("api/[controller]")]
 [ApiVersion("1.0")]
