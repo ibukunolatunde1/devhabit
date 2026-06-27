@@ -23,6 +23,36 @@ namespace DevHabit.Api.Migrations.Application
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DevHabit.Api.Entities.GitHubAccessToken", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("GitHubAccessTokens", "dev_habit");
+                });
+
             modelBuilder.Entity("DevHabit.Api.Entities.Habit", b =>
                 {
                     b.Property<string>("Id")
@@ -161,6 +191,15 @@ namespace DevHabit.Api.Migrations.Application
                         .IsUnique();
 
                     b.ToTable("Users", "dev_habit");
+                });
+
+            modelBuilder.Entity("DevHabit.Api.Entities.GitHubAccessToken", b =>
+                {
+                    b.HasOne("DevHabit.Api.Entities.User", null)
+                        .WithOne()
+                        .HasForeignKey("DevHabit.Api.Entities.GitHubAccessToken", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DevHabit.Api.Entities.Habit", b =>

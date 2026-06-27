@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text;
 using Asp.Versioning;
 using DevHabit.Api.Database;
@@ -123,6 +124,32 @@ public static class DependencyInjection
         builder.Services.AddMemoryCache();
         builder.Services.AddScoped<UserContext>();
 
+        builder.Services.AddScoped<GitHubAccessTokenService>();
+        builder.Services.AddTransient<GitHubService>();
+        builder.Services.AddHttpClient("github")
+            .ConfigureHttpClient(client =>
+            {
+                client.BaseAddress = new Uri("https://api.github.com");
+                client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DevHabit", "1.0"));
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            });
+        builder.Services
+            .AddOptions<EncryptionOptions>()
+            .Bind(builder.Configuration.GetSection("Encryption"))
+            .Validate(options =>
+            {
+                try
+                {
+                    byte[] key = Convert.FromBase64String(options.Key);
+                    return key.Length is 16 or 24 or 32;
+                }
+                catch (FormatException)
+                {
+                    return false;
+                }
+            }, "Encryption:Key must be a Base64-encoded AES key with 16, 24, or 32 bytes.")
+            .ValidateOnStart();
+        builder.Services.AddTransient<EncryptionService>();
         return builder;
     }
 
